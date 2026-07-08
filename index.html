@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>仪器管理系统</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'PingFang SC','Microsoft YaHei',sans-serif;background:#f0f2f5;color:#1f2937;min-height:100vh}
+.navbar{background:#fff;padding:12px 20px;display:flex;justify-content:space-between;box-shadow:0 1px 3px rgba(0,0,0,.1);position:sticky;top:0;z-index:100}
+.navbar span{font-size:18px;font-weight:700;color:#4A6CF7;cursor:pointer}
+.navbar button{padding:8px 16px;border:none;border-radius:8px;cursor:pointer;margin-left:4px;background:#f3f4f6;font-size:14px}
+.navbar button.active{background:#4A6CF7;color:#fff}
+.container{max-width:800px;margin:0 auto;padding:20px}
+.card{background:#fff;border-radius:12px;padding:24px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.card h2{font-size:18px;margin-bottom:16px}
+.card h3{font-size:16px;margin-bottom:12px}
+.btn{padding:12px 24px;border-radius:8px;border:none;font-size:15px;font-weight:600;cursor:pointer;color:#fff;margin:4px;display:inline-block;text-align:center}
+.btn-primary{background:#4A6CF7}
+.btn-success{background:#10B981}
+.btn-danger{background:#EF4444}
+.btn-outline{background:#fff;color:#4A6CF7;border:2px solid #4A6CF7}
+.btn-sm{padding:6px 12px;font-size:13px}
+.btn-block{width:100%}
+.status-tag{display:inline-block;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600}
+.status-tag.available{background:#d1fae5;color:#065f46}
+.status-tag.borrowed{background:#fef3c7;color:#92400e}
+.status-tag{
+    display:inline-block;
+    padding:4px 12px;
+    border-radius:20px;
+    font-size:13px;
+    font-weight:600;
+    white-space:nowrap;
+}
+#main {
+    animation: fadeIn 0.25s ease;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:200;justify-content:center;align-items:center;padding:16px}
+.modal-overlay.active{display:flex}
+.modal{background:#fff;border-radius:12px;padding:28px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto}
+.modal {
+    animation: scaleIn 0.2s ease;
+}
+@keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-weight:600;margin-bottom:6px;font-size:14px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:12px;border:2px solid #e5e7eb;border-radius:8px;font-size:15px;font-family:inherit}
+.form-group textarea{min-height:80px;resize:vertical}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:#4A6CF7}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:700px}
+table th,table td{padding:10px 12px;text-align:left;border-bottom:1px solid #e5e7eb}
+table th{background:#f9fafb;font-weight:700;font-size:12px;color:#6b7280}
+table tbody tr:hover{background:#f9fafb}
+.toast{padding:14px 20px;border-radius:8px;color:#fff;font-weight:600;margin-bottom:8px;animation:slideIn .3s}
+.toast.success{background:#10B981}
+.toast.error{background:#EF4444}
+.toast.info{background:#4A6CF7}
+@keyframes slideIn{from{opacity:0;transform:translateX(60px)}to{opacity:1;transform:translateX(0)}}
+.instrument-highlight{background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:2px solid #c7d2fe;border-radius:12px;padding:20px;margin-bottom:16px}
+.instrument-highlight h3{font-size:20px;color:#1e3a8a;margin-bottom:8px}
+.instrument-highlight .code{font-family:monospace;background:#fff;padding:4px 12px;border-radius:20px;font-size:14px;display:inline-block;margin-bottom:8px}
+.info-row{display:flex;gap:20px;flex-wrap:wrap;margin-top:8px;font-size:14px;color:#4b5563}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+.stat-card{background:#fff;border-radius:12px;padding:18px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.stat-card .number{font-size:28px;font-weight:800}
+.stat-card .label{font-size:13px;color:#6b7280;margin-top:4px}
+.search-result-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f3f4f6;flex-wrap:wrap;gap:8px}
+.search-result-item:hover{background:#fafbfc}
+@media(max-width:600px){
+.container{padding:12px}
+.card{padding:16px}
+.btn{padding:10px 16px;font-size:14px}
+.modal{padding:20px 16px}
+table{min-width:550px;font-size:12px}
+table th,table td{padding:8px 10px}
+.stats-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+.stat-card{padding:12px}
+.stat-card .number{font-size:24px}
+}
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+    <span onclick="showPage('scan')">仪器管理系统</span>
+    <div>
+        <button id="nav-scan" class="active" onclick="showPage('scan')">扫码页面</button>
+        <button id="nav-admin" onclick="showPage('admin')">管理页面</button>
+    </div>
+</nav>
+
+<div id="toastBox" style="position:fixed;top:20px;right:20px;z-index:9999"></div>
+<div class="container" id="main"></div>
+
+<!-- 用户绑定弹窗 -->
+<div class="modal-overlay" id="bindModal">
+    <div class="modal">
+        <h3>绑定信息</h3>
+        <p style="color:#6b7280;margin-bottom:16px;font-size:14px;">首次使用需绑定，以后自动识别</p>
+        <form onsubmit="bind(event)">
+            <div class="form-group"><label>👤 姓名 *</label><input id="bname" required placeholder="请输入姓名"></div>
+            <div class="form-group"><label>📱 手机号 *</label><input id="bphone" required maxlength="11" placeholder="请输入11位手机号"></div>
+            <button type="submit" class="btn btn-primary btn-block">确认绑定</button>
+        </form>
+    </div>
+</div>
+
+<!-- 借仪器弹窗 -->
+<div class="modal-overlay" id="borrowModal">
+    <div class="modal">
+        <h3>借出仪器</h3>
+        <form onsubmit="borrow(event)">
+            <input type="hidden" id="bid">
+            <div class="form-group"><label>仪器</label><input id="binfo" readonly style="background:#f3f4f6;font-weight:600;"></div>
+            <div class="form-group"><label>👤 借用人</label><input id="bperson" readonly style="background:#f3f4f6;"></div>
+            <div class="form-group"><label>📝 用途（仪器使用地点、项目名称） *</label><textarea id="bpurpose" required placeholder="请简要描述借用目的"></textarea></div>
+            <div class="form-group"><label>📅 预计归还时间 *</label><input type="datetime-local" id="btime" required></div>
+            <button type="submit" class="btn btn-primary btn-block">确认借出</button>
+        </form>
+    </div>
+</div>
+
+<!-- 还仪器弹窗 -->
+<div class="modal-overlay" id="returnModal">
+    <div class="modal">
+        <h3>归还仪器</h3>
+        <form onsubmit="return_(event)">
+            <input type="hidden" id="rid">
+            <div class="form-group"><label>仪器</label><input id="rinfo" readonly style="background:#f3f4f6;font-weight:600;"></div>
+            <div class="form-group"><label>归还人</label><input id="rperson" readonly style="background:#fef3c7;font-weight:600;"></div>
+            <div class="form-group"><label>仪器情况 *</label>
+                <select id="rcond" required>
+                    <option value="">请选择仪器状况</option>
+                    <option value="完好">完好</option>
+                    <option value="损坏">损坏</option>
+                </select>
+            </div>
+			<div class="form-group">
+			    <label>仪器绿标情况 *</label>
+			    <select id="rlabel" required>
+			        <option value="">请选择绿标状况</option>
+			        <option value="完好">完好</option>
+			        <option value="丢失">丢失</option>
+			        <option value="过期">过期</option>
+			    </select>
+			</div>
+            <button type="submit" class="btn btn-success btn-block">确认归还</button>
+        </form>
+    </div>
+</div>
+<div class="modal-overlay" id="batchBorrowModal"><div class="modal">
+    <h3>批量借出仪器</h3>
+    <form onsubmit="submitBatchBorrow(event)">
+        <div class="form-group"><label>选中仪器</label><textarea id="batchInstruments" readonly rows="3" style="background:#f8fafc;"></textarea></div>
+        <div class="form-group"><label>👤 借用人</label><input id="batchPerson" readonly></div>
+        <div class="form-group"><label>📝 用途（仪器使用地点、项目名称） *</label><textarea id="batchPurpose" required placeholder="请简要描述借用目的"></textarea></div>
+        <div class="form-group"><label>📅 预计归还时间 *</label><input type="datetime-local" id="batchTime" required></div>
+        <button type="submit" class="btn btn-primary btn-block">确认借出</button>
+    </form>
+</div></div>
+
+<!-- 添加仪器弹窗 -->
+<div class="modal-overlay" id="addModal">
+    <div class="modal">
+        <h3>➕ 添加新仪器</h3>
+        <form onsubmit="addInst(event)">
+            <div class="form-group"><label>仪器编号 *</label><input id="acode" required placeholder="例如：INST-005"></div>
+            <div class="form-group"><label>仪器名称 *</label><input id="aname" required placeholder="例如：数字示波器"></div>
+            <div class="form-group"><label>存放位置</label><input id="aloc" placeholder="例如：实验室A-103"></div>
+            <button type="submit" class="btn btn-primary btn-block">添加仪器</button>
+        </form>
+    </div>
+</div>
+<div class="modal-overlay" id="forceReturnModal"><div class="modal">
+    <h3>⚡ 强制归还</h3>
+    <p id="forceReturnInfo" style="margin-bottom:16px;color:#6b7280;"></p>
+    <input type="hidden" id="forceReturnId">
+    <div class="form-group"><label>🔍 仪器情况 *</label>
+        <select id="forceReturnCond" required>
+            <option value="">请选择</option>
+            <option value="完好">完好</option>
+            <option value="损坏">损坏</option>
+        </select>
+    </div>
+    <button class="btn btn-success btn-block" onclick="confirmForceReturn()">✅ 确认归还</button>
+    <button class="btn btn-outline btn-block" onclick="closeModal('forceReturnModal')" style="margin-top:8px;">取消</button>
+</div></div>
+<script>
+// ==================== Supabase 配置 ====================
+const SUPABASE_URL = 'https://csjifasuetawuwsmvxui.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_ZLQ4P2dS1iHbwCa20eqb6w_I5LFYRh8';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ==================== 全局变量 ====================
+let user = null;
+let batchMode = false, selectedInstruments = [];
+let admin = false;
+let page = 'scan';
+
+// ==================== 工具函数 ====================
+function toast(msg, type) {
+    const d = document.getElementById('toastBox');
+    const t = document.createElement('div');
+    t.className = 'toast ' + type;
+    t.textContent = msg;
+    d.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
+}
+
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+document.addEventListener('click', e => { if (e.target.classList.contains('modal-overlay')) closeModal(e.target.id); });
+
+function getUser() { const s = localStorage.getItem('u'); return s ? JSON.parse(s) : null; }
+function saveUser(u) { localStorage.setItem('u', JSON.stringify(u)); user = u; }
+
+function checkUser() {
+    user = getUser();
+    if (!user) { openModal('bindModal'); return false; }
+    return true;
+}
+
+// ==================== 用户绑定 ====================
+async function bind(e) {
+    e.preventDefault();
+    const n = document.getElementById('bname').value.trim();
+    const p = document.getElementById('bphone').value.trim();
+    if (!n || !p) { toast('请填写完整信息', 'error'); return; }
+    if (p.length !== 11 || !/^\d{11}$/.test(p)) { toast('手机号格式不正确', 'error'); return; }
+    const { data, error } = await sb.from('users').insert({ 
+        name: n, 
+        phone: p, 
+        created_at: new Date(Date.now() + 8*60*60*1000).toISOString() 
+    }).select().single();
+    if (error) { toast('绑定失败：' + error.message, 'error'); return; }
+    saveUser({ id: data.id, name: n, phone: p });
+    closeModal('bindModal');
+    toast('绑定成功！', 'success');
+    renderScan();
+}
+
+// ==================== 页面导航 ====================
+function showPage(p, params) {
+    page = p;
+    document.getElementById('nav-scan').classList.toggle('active', p === 'scan');
+    document.getElementById('nav-admin').classList.toggle('active', p === 'admin');
+    
+    const main = document.getElementById('main');
+    main.style.opacity = '0.5';
+    main.style.transition = 'opacity 0.1s ease';
+    
+    if (p === 'scan') {
+        main.className = 'container';
+        if (params && params.code) renderCode(params.code);
+        else renderScan();
+    } else {
+        if (!admin) {
+            const pw = prompt('请输入管理员密码：');
+            if (pw !== '111111') { toast('密码错误', 'error'); showPage('scan'); return; }
+            admin = true;
+        }
+        main.className = 'container';
+        renderAdmin();
+    }
+    
+    setTimeout(() => {
+        main.style.opacity = '1';
+    }, 50);
+}
+
+// ==================== 扫码页面 - 搜索功能 ====================
+async function renderScan() {
+    document.getElementById('main').innerHTML = `
+        <div class="card" style="text-align:center">
+            <h2>仪器出入库管理</h2>
+            <div style="display:flex;justify-content:center;align-items:center;gap:0;">
+                <input id="codeInput" placeholder="输入编号或名称（支持模糊搜索）" 
+                    style="padding:12px 16px;border:2px solid #e5e7eb;border-right:none;border-radius:8px 0 0 8px;font-size:15px;width:260px;outline:none;">
+                <button class="btn btn-primary" onclick="query()" style="margin:0;border-radius:0 8px 8px 0;padding:12px 20px;white-space:nowrap;">搜索</button>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;justify-content:center;align-items:center;">
+                <button class="btn btn-sm btn-outline" id="batchBtn" onclick="toggleBatchMode()">批量借出</button>
+                <span id="batchPanel" style="display:none;gap:6px;align-items:center;">
+                    <span id="batchCount" style="color:#dc2626;font-weight:600;">0</span>
+                    <span style="font-size:12px;color:#64748b;">台已选</span>
+                    <button class="btn btn-sm btn-primary" onclick="batchBorrow()">确认借出</button>
+                </span>
+            </div>
+        </div>
+        <div class="card">
+            <h3>搜索结果</h3>
+            <div id="searchResults">
+                <p style="color:#9ca3af;text-align:center;">请输入关键词开始搜索</p>
+            </div>
+        </div>
+        <div class="card">
+            <h3>所有仪器</h3>
+            <div id="allList">加载中...</div>
+        </div>`;
+    const codeInput = document.getElementById('codeInput');
+    codeInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') query();
+    });
+    codeInput.addEventListener('input', e => {
+        if (e.target.value.trim() === '') {
+            document.getElementById('searchResults').innerHTML = '<p style="color:#9ca3af;text-align:center;">请输入关键词开始搜索</p>';
+        }
+    });
+    loadAll();
+}
+
+// ==================== 模糊搜索 ====================
+async function query() {
+    const keyword = document.getElementById('codeInput').value.trim();
+    if (!keyword) { toast('请输入关键词', 'error'); return; }
+
+    const { data, error } = await sb
+        .from('instruments')
+        .select('*')
+        .or(`code.ilike.%${keyword}%,name.ilike.%${keyword}%,location.ilike.%${keyword}%`)
+        .order('code')
+        .limit(50);
+
+    const resultsDiv = document.getElementById('searchResults');
+    if (!resultsDiv) return;
+
+    if (error) {
+        resultsDiv.innerHTML = `<p style="text-align:center;color:#EF4444;">搜索出错：${error.message}</p>`;
+        return;
+    }
+
+    if (!data || data.length === 0) {
+        resultsDiv.innerHTML = `<p style="text-align:center;color:#9ca3af;">❌ 未找到包含"<b>${keyword}</b>"的仪器</p>`;
+        return;
+    }
+
+   if (data.length === 1 && !batchMode) {
+       resultsDiv.innerHTML = `<p style="text-align:center;color:#10B981;">找到1台仪器，正在跳转...</p>`;
+       renderCode(data[0].code);
+       return;
+   }
+
+            resultsDiv.innerHTML = `
+                <p style="color:#6b7280;margin-bottom:12px;">🔍 找到 <b style="color:#4A6CF7;">${data.length}</b> 台包含"<b>${keyword}</b>"的仪器：</p>
+                ${data.map(i => `
+                    <div class="search-result-item" style="flex-direction:column;align-items:flex-start;">
+                        <div style="display:flex;align-items:center;gap:12px;width:100%;">
+                            ${batchMode ? `<input type="checkbox" onchange="toggleSelect('${i.id}','${i.code}','${i.name}')" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;">` : ''}
+                           <b style="font-family:monospace;font-size:14px;white-space:nowrap;width:70px;display:inline-block;flex-shrink:0;">${i.code}</b>
+                           <span style="color:#1f2937;width:100px;flex-shrink:0;">${i.name}</span>
+                            <span class="status-tag ${i.status}" style="width:50px;text-align:center;flex-shrink:0;">${i.status === 'available' ? '在库' : '借出'}</span>
+                            <span style="color:#9ca3af;font-size:12px;flex-shrink:0;">📍 ${i.location || '未指定位置'}</span>
+                        </div>
+                        <button class="btn btn-outline btn-sm" onclick="renderCode('${i.code}')" style="margin-top:6px;align-self:flex-end;">查看详情</button>
+                    </div>
+                `).join('')}
+            `;
+			document.getElementById('codeInput').value = keyword;
+}
+// ==================== 查看单台仪器详情 ====================
+async function renderCode(code) {
+    if (!checkUser()) return;
+    const { data: i, error } = await sb.from('instruments').select('*').eq('code', code).single();
+    if (error || !i) {
+        document.getElementById('main').innerHTML = `
+            <div class="card" style="text-align:center">
+                <h2>❌ 未找到仪器</h2>
+                <p style="color:#6b7280;">编号：${code}</p>
+                <button class="btn btn-primary" onclick="showPage('scan')">← 返回搜索</button>
+            </div>`;
+        return;
+    }
+    const st = i.status === 'available' ? '✅ 在库可用' : '⚠️ 已借出';
+    const sc = i.status;
+	const m = document.getElementById('main');
+	m.style.opacity = '0.6';
+	setTimeout(() => { m.style.opacity = '1'; }, 30);
+    document.getElementById('main').innerHTML = `
+        <div class="instrument-highlight">
+            <h3>${i.name}</h3>
+            <span class="code">📌 ${i.code}</span>
+            <span class="status-tag ${sc}" style="margin-left:8px;">${st}</span>
+            <div class="info-row">
+                <span>📍 位置：${i.location || '未指定'}</span>
+                ${i.status === 'borrowed' ? `
+                    <span>👤 借用人：${i.current_borrower || '未知'}</span>
+                    <span>📅 借出时间：${i.borrow_time ? new Date(i.borrow_time).toLocaleString() : '-'}</span>
+                    <span>⏰ 预计归还：${i.expected_return_time ? new Date(i.expected_return_time).toLocaleString() : '-'}</span>
+                ` : ''}
+            </div>
+        </div>
+        <div class="card">
+            ${i.status === 'available' 
+                ? `<button class="btn btn-primary btn-block" onclick="doBorrow('${i.id}')">借仪器</button>`
+                : `<button class="btn btn-success btn-block" onclick="doReturn('${i.id}')">还仪器</button>`
+            }
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="showPage('scan')">← 返回搜索</button>
+    `;
+}
+// ==================== 加载所有仪器 ====================
+async function loadAll() {
+    const { data } = await sb.from('instruments').select('*').order('code');
+    const d = document.getElementById('allList');
+    if (!d) return;
+    if (!data || !data.length) { d.innerHTML = '<p style="text-align:center;color:#9ca3af;">暂无仪器数据</p>'; return; }
+    d.innerHTML = data.map(i => `<div class="search-result-item" style="flex-direction:column;align-items:flex-start;">
+        <div style="display:flex;align-items:center;gap:12px;width:100%;">
+            ${batchMode ? `<input type="checkbox" onchange="toggleSelect('${i.id}','${i.code}','${i.name}')" style="width:16px;height:16px;cursor:pointer;flex-shrink:0;">` : ''}
+            <b style="font-family:monospace;white-space:nowrap;width:70px;display:inline-block;flex-shrink:0;">${i.code}</b>
+            <span style="width:100px;flex-shrink:0;">${i.name}</span>
+            <span class="status-tag ${i.status}" style="width:50px;text-align:center;flex-shrink:0;">${i.status==='available'?'在库':'借出'}</span>
+            <span style="color:#9ca3af;font-size:12px;flex-shrink:0;">📍${i.location||'-'}</span>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="renderCode('${i.code}')" style="margin-top:6px;align-self:flex-end;">查看</button>
+    </div>`).join('');
+}
+
+// ==================== 借仪器 ====================
+async function doBorrow(id) {
+    const { data: i } = await sb.from('instruments').select('*').eq('id', id).single();
+    if (!i || i.status !== 'available') { toast('该仪器不可借', 'error'); return; }
+    document.getElementById('bid').value = i.id;
+    document.getElementById('binfo').value = i.code + ' - ' + i.name;
+    document.getElementById('bperson').value = user.name;
+    document.getElementById('bpurpose').value = '';
+    const now = new Date();
+    now.setDate(now.getDate() + 7);
+    document.getElementById('btime').value = now.toISOString().slice(0, 16);
+    openModal('borrowModal');
+}
+
+async function borrow(e) {
+    e.preventDefault();
+    const id = document.getElementById('bid').value;
+    const purpose = document.getElementById('bpurpose').value.trim();
+    const rt = document.getElementById('btime').value;
+    if (!purpose) { toast('请填写用途', 'error'); return; }
+    const now = new Date(Date.now() + 8*60*60*1000).toISOString();
+    const { error } = await sb.from('instruments').update({
+        status: 'borrowed',
+        current_borrower: user.name,
+        borrower_phone: user.phone,
+        borrow_time: now,
+        expected_return_time: rt ? new Date(rt).toISOString() : null
+    }).eq('id', id);
+    if (error) { toast('操作失败：' + error.message, 'error'); return; }
+    const { data: i } = await sb.from('instruments').select('code,name').eq('id', id).single();
+    await sb.from('records').insert({
+        instrument_id: id,
+        instrument_code: i.code,
+        instrument_name: i.name,
+        borrower: user.name,
+        borrower_phone: user.phone,
+        purpose,
+        borrow_time: now,
+        expected_return_time: rt ? new Date(rt).toISOString() : null,
+        status: 'borrowed'
+    });
+    closeModal('borrowModal');
+    toast('借出成功！', 'success');
+    renderCode(i.code);
+}
+
+// ==================== 还仪器 ====================
+async function doReturn(id) {
+    const { data: i } = await sb.from('instruments').select('*').eq('id', id).single();
+    if (!i || i.status !== 'borrowed') { toast('该仪器未借出', 'info'); return; }
+    document.getElementById('rid').value = i.id;
+    document.getElementById('rinfo').value = i.code + ' - ' + i.name;
+    document.getElementById('rperson').value = user.name;
+    document.getElementById('rcond').value = '';
+	document.getElementById('rlabel').value = '';
+    openModal('returnModal');
+}
+
+async function return_(e) {
+    e.preventDefault();
+    const id = document.getElementById('rid').value;
+    const cond = document.getElementById('rcond').value;
+    const label = document.getElementById('rlabel').value;
+    if (!cond || !label) { toast('请选择仪器情况和绿标情况', 'error'); return; }
+    
+    const now = new Date(Date.now() + 8*60*60*1000).toISOString();
+    await sb.from('instruments').update({
+        status: 'available',
+        current_borrower: null,
+        borrower_phone: null,
+        borrow_time: null,
+        expected_return_time: null,
+        condition_note: cond === '损坏' ? '归还时标记为损坏' : null,
+        label_status: label
+    }).eq('id', id);
+    
+    const { data: r } = await sb.from('records').select('*')
+        .eq('instrument_id', id).eq('status', 'borrowed')
+        .order('id', { ascending: false }).limit(1).single();
+    
+    if (r) {
+        await sb.from('records').update({
+            return_person: user.name,
+            return_condition: cond,
+            return_time: now,
+            status: 'returned',
+            label_status: label
+        }).eq('id', r.id);
+    }
+    
+    closeModal('returnModal');
+    toast('✅ 归还成功！', 'success');
+    const { data: i } = await sb.from('instruments').select('code').eq('id', id).single();
+    renderCode(i.code);
+}
+// ==================== 管理后台 ====================
+async function renderAdmin() {
+    const { data: inst } = await sb.from('instruments').select('*').order('code');
+    const { data: rec } = await sb.from('records').select('*').order('id', { ascending: false }).limit(200);
+    const t = inst ? inst.length : 0;
+    const a = inst ? inst.filter(i => i.status === 'available').length : 0;
+    const b = inst ? inst.filter(i => i.status === 'borrowed').length : 0;
+    document.getElementById('main').innerHTML = `
+        <div class="stats-grid">
+            <div class="stat-card"><div class="number" style="color:#4A6CF7;">${t}</div><div class="label">📋 仪器总数</div></div>
+            <div class="stat-card"><div class="number" style="color:#10B981;">${a}</div><div class="label">✅ 在库可用</div></div>
+            <div class="stat-card"><div class="number" style="color:#F59E0B;">${b}</div><div class="label">📤 借出中</div></div>
+        </div>
+        <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+                <h2 style="margin:0;">📋 仪器列表</h2>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <button class="btn btn-sm filter-btn" data-status="all" onclick="filterStatus('all')">全部</button>
+                        <button class="btn btn-sm filter-btn" data-status="borrowed" onclick="filterStatus('borrowed')">借出中</button>
+                        <button class="btn btn-sm filter-btn" data-status="available" onclick="filterStatus('available')">在库</button>
+                        <input id="search" placeholder="🔍 搜索..." style="padding:9px 14px;border:2px solid #e5e7eb;border-radius:9px;width:160px;font-size:14px;" oninput="filter()">
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="openModal('addModal')">添加</button>
+                    <button class="btn btn-outline btn-sm" onclick="exportData()">导出</button>
+                </div>
+            </div>
+            <div style="overflow-x:auto;">
+                <table id="itab">
+                    <thead>
+                        <tr><th>编号</th><th>名称</th><th>位置</th><th>状态</th><th>借用人</th><th>借出时间</th><th>预计归还</th><th>操作</th></tr>
+                    </thead>
+                    <tbody>
+                        ${inst ? inst.map(i => `
+                            <tr>
+                                <td style="font-family:monospace;">${i.code}</td>
+                                <td>${i.name}</td>
+                                <td>${i.location || '-'}</td>
+                                <td><span class="status-tag ${i.status}">${i.status === 'available' ? '在库' : '借出'}</span></td>
+                                <td>${i.current_borrower || '-'}</td>
+                                <td style="font-size:12px;">${i.borrow_time ? new Date(i.borrow_time).toLocaleDateString() : '-'}</td>
+                                <td style="font-size:12px;">${i.expected_return_time ? new Date(i.expected_return_time).toLocaleDateString() : '-'}</td>
+                                <td>
+                                    ${i.status === 'borrowed'
+                                        ? `<button class="btn btn-success btn-sm" onclick="forceReturn('${i.id}')">强制归还</button>`
+                                        : `<button class="btn btn-primary btn-sm" onclick="forceBorrow('${i.id}')">强制借出</button>`
+                                    }
+                                </td>
+                            </tr>
+                        `).join('') : '<tr><td colspan="8" style="text-align:center;">暂无仪器</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card">
+            <h2>📜 最近借用记录</h2>
+            <div style="overflow-x:auto;">
+                <table>
+                    <thead>
+                        <tr><th>仪器编号</th><th>名称</th><th>借用人</th><th>用途</th><th>借出时间</th><th>归还人</th><th>情况</th><th>归还时间</th><th>状态</th></tr>
+                    </thead>
+                    <tbody>
+                        ${rec ? rec.slice(0, 100).map(r => `
+                            <tr>
+                                <td style="font-family:monospace;">${r.instrument_code}</td>
+                                <td>${r.instrument_name}</td>
+                                <td>${r.borrower}</td>
+                                <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.purpose || ''}">${r.purpose || '-'}</td>
+                                <td style="font-size:12px;">${r.borrow_time ? new Date(r.borrow_time).toLocaleDateString() : '-'}</td>
+                                <td>${r.return_person || '-'}</td>
+                                <td>${r.return_condition === '损坏' ? '损坏' : r.return_condition === '完好' ? '完好' : '-'}</td>
+                                <td style="font-size:12px;">${r.return_time ? new Date(r.return_time).toLocaleDateString() : '-'}</td>
+                                <td><span class="status-tag ${r.status === 'borrowed' ? 'borrowed' : 'available'}">${r.status === 'borrowed' ? '借出中' : '已归还'}</span></td>
+                            </tr>
+                        `).join('') : '<tr><td colspan="9" style="text-align:center;">暂无记录</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+        </div>`;
+		setTimeout(() => filterStatus('all'), 100);
+}
+
+// ==================== 添加仪器 ====================
+async function addInst(e) {
+    e.preventDefault();
+    const code = document.getElementById('acode').value.trim();
+    const name = document.getElementById('aname').value.trim();
+    const loc = document.getElementById('aloc').value.trim();
+    if (!code || !name) { toast('请填写编号和名称', 'error'); return; }
+    const { error } = await sb.from('instruments').insert({ code, name, location: loc, status: 'available' });
+    if (error) { toast('添加失败：' + error.message, 'error'); return; }
+    closeModal('addModal');
+    toast('添加成功！', 'success');
+    renderAdmin();
+}
+
+// ==================== 强制操作 ====================
+async function forceBorrow(id) {
+    const name = prompt('请输入借用人姓名：');
+    if (!name) return;
+    const purpose = prompt('请输入用途：');
+    await sb.from('instruments').update({
+        status: 'borrowed',
+        current_borrower: name,
+        borrow_time: new Date(Date.now() + 8*60*60*1000).toISOString()
+    }).eq('id', id);
+    const { data: i } = await sb.from('instruments').select('code,name').eq('id', id).single();
+    await sb.from('records').insert({
+        instrument_id: id,
+        instrument_code: i.code,
+        instrument_name: i.name,
+        borrower: name,
+        purpose,
+        borrow_time: new Date(Date.now() + 8*60*60*1000).toISOString(),
+        status: 'borrowed'
+    });
+    toast('强制借出成功', 'success');
+    renderAdmin();
+}
+
+function forceReturn(id) {
+    // 获取仪器信息并显示弹窗
+    sb.from('instruments').select('code,name').eq('id', id).single().then(({ data }) => {
+        if (data) {
+            document.getElementById('forceReturnInfo').textContent = `仪器：${data.code} - ${data.name}`;
+            document.getElementById('forceReturnId').value = id;
+            document.getElementById('forceReturnCond').value = '';
+            openModal('forceReturnModal');
+        }
+    });
+}
+
+async function confirmForceReturn() {
+    const id = document.getElementById('forceReturnId').value;
+    const cond = document.getElementById('forceReturnCond').value;
+    if (!cond) { toast('请选择仪器情况', 'error'); return; }
+    
+    const now = new Date(Date.now() + 8*60*60*1000).toISOString();
+    await sb.from('instruments').update({
+        status: 'available', current_borrower: null, borrow_time: null,
+        condition_note: cond === '损坏' ? '强制归还-损坏' : null
+    }).eq('id', id);
+    
+    const { data: r } = await sb.from('records').select('*')
+        .eq('instrument_id', id).eq('status', 'borrowed')
+        .order('id', { ascending: false }).limit(1).single();
+    
+    if (r) {
+        await sb.from('records').update({
+            return_person: '管理员', return_condition: cond,
+            return_time: now, status: 'returned'
+        }).eq('id', r.id);
+    }
+    
+    closeModal('forceReturnModal');
+    toast('强制归还成功', 'success');
+    renderAdmin();
+}
+
+// ==================== 搜索过滤 ====================
+function toggleBatchMode() {
+    batchMode = !batchMode;
+    selectedInstruments = [];
+    const btn = document.getElementById('batchBtn');
+    const panel = document.getElementById('batchPanel');
+    
+    if (batchMode) {
+        btn.textContent = '退出批量模式';
+        btn.style.background = '#dc2626'; btn.style.color = '#fff';
+        panel.style.display = 'flex';
+        document.getElementById('batchCount').textContent = '0';
+    } else {
+        btn.textContent = '批量借出';
+        btn.style.background = ''; btn.style.color = '';
+        panel.style.display = 'none';
+        document.getElementById('batchCount').textContent = '0';
+        // 退出批量模式时，清空搜索结果，避免自动跳转
+        document.getElementById('searchResults').innerHTML = '<p style="color:#9ca3af;text-align:center;">请输入关键词开始搜索</p>';
+    }
+    loadAll();
+}
+function toggleSelect(id, code, name) {
+    const idx = selectedInstruments.findIndex(i => i.id === id);
+    if (idx > -1) selectedInstruments.splice(idx, 1);
+    else selectedInstruments.push({ id, code, name });
+    document.getElementById('batchCount').textContent = selectedInstruments.length;
+}
+function batchBorrow() {
+    if (!checkUser()) return;
+    if (selectedInstruments.length === 0) { toast('请先勾选仪器', 'error'); return; }
+    
+    document.getElementById('batchInstruments').value = selectedInstruments.map(i => i.code + ' - ' + i.name).join('\n');
+    document.getElementById('batchPerson').value = user.name;
+    document.getElementById('batchPurpose').value = '';
+    const now = new Date(); now.setDate(now.getDate() + 7);
+    document.getElementById('batchTime').value = now.toISOString().slice(0, 16);
+    openModal('batchBorrowModal');
+}
+
+async function submitBatchBorrow(e) {
+    e.preventDefault();
+    const purpose = document.getElementById('batchPurpose').value.trim();
+    const rt = document.getElementById('batchTime').value;
+    if (!purpose) { toast('请填写用途', 'error'); return; }
+    
+    // 校验每台仪器是否在库
+    const available = [];
+    const unavailable = [];
+    for (const i of selectedInstruments) {
+        const { data } = await sb.from('instruments').select('status').eq('id', i.id).single();
+        if (data && data.status === 'available') {
+            available.push(i);
+        } else {
+            unavailable.push(i.code);
+        }
+    }
+    
+    if (unavailable.length > 0) {
+        toast(`以下仪器已被借出：${unavailable.join(', ')}`, 'error');
+        return;
+    }
+    
+    const now = new Date(Date.now() + 8*60*60*1000).toISOString();
+    for (const i of available) {
+        await sb.from('instruments').update({
+            status: 'borrowed', current_borrower: user.name, borrower_phone: user.phone,
+            borrow_time: now, expected_return_time: rt ? new Date(rt).toISOString() : null
+        }).eq('id', i.id);
+        await sb.from('records').insert({
+            instrument_id: i.id, instrument_code: i.code, instrument_name: i.name,
+            borrower: user.name, borrower_phone: user.phone, purpose,
+            borrow_time: now, expected_return_time: rt ? new Date(rt).toISOString() : null, status: 'borrowed'
+        });
+    }
+    
+    closeModal('batchBorrowModal');
+    toast(`成功借出 ${available.length} 台仪器！`, 'success');
+    toggleBatchMode();
+    loadAll();
+    document.getElementById('searchResults').innerHTML = '<p style="text-align:center;color:#9ca3af;">请输入关键词开始搜索</p>';
+}
+function filter() {
+    const k = document.getElementById('search').value.toLowerCase();
+    document.querySelectorAll('#itab tbody tr').forEach(r => {
+        r.style.display = r.textContent.toLowerCase().includes(k) ? '' : 'none';
+    });
+}
+let currentFilter = 'all';
+
+function filterStatus(status) {
+    currentFilter = status;
+    const now = new Date();
+    document.querySelectorAll('#itab tbody tr').forEach(r => {
+        const cells = r.querySelectorAll('td');
+        if (cells.length < 4) return;
+        const statusCell = cells[3].textContent;
+        
+        let show = true;
+        if (status === 'borrowed') {
+            show = statusCell.includes('借出') || statusCell.includes('超期');
+        } else if (status === 'overdue') {
+            show = statusCell.includes('超期');
+        } else if (status === 'available') {
+            show = statusCell.includes('在库');
+        }
+        
+        r.style.display = show ? '' : 'none';
+    });
+    
+    // 更新按钮样式
+    document.querySelectorAll('.filter-btn').forEach(b => {
+        b.style.background = '#fff';
+        b.style.color = '#4A6CF7';
+        b.style.border = '2px solid #4A6CF7';
+    });
+    const activeBtn = document.querySelector(`.filter-btn[data-status="${status}"]`);
+    if (activeBtn) {
+        activeBtn.style.background = '#4A6CF7';
+        activeBtn.style.color = '#fff';
+        activeBtn.style.border = '2px solid #4A6CF7';
+    }
+}
+// ==================== 数据导出 ====================
+async function exportData() {
+    const { data: instruments } = await sb.from('instruments').select('*').order('code');
+    const { data: records } = await sb.from('records').select('*').order('created_at', { ascending: false });
+    
+   function fmt(t) {
+       if (!t) return '';
+       const d = new Date(t);
+       d.setHours(d.getHours() + 8);
+       const month = d.getMonth() + 1;
+       const day = d.getDate();
+       return month + '/' + day;
+   }
+    
+    let csv = '\uFEFF';
+    
+    csv += '=== 仪器列表 ===\n';
+    csv += '编号,名称,位置,状态,借用人,借出时间,预计归还时间\n';
+    if (instruments) {
+        instruments.forEach(i => {
+            csv += `${i.code},${i.name},${i.location || ''},${i.status === 'available' ? '在库' : '借出'},${i.current_borrower || ''},${fmt(i.borrow_time)},${fmt(i.expected_return_time)}\n`;
+        });
+    }
+    
+    csv += '\n\n=== 借用记录 ===\n';
+    csv += '仪器编号,名称,借用人,手机号,用途,借出时间,预计归还,归还人,仪器情况,归还时间,状态\n';
+    if (records) {
+        records.forEach(r => {
+            csv += `${r.instrument_code},${r.instrument_name},${r.borrower},${r.borrower_phone || ''},${(r.purpose || '').replace(/,/g, '，')},${fmt(r.borrow_time)},${fmt(r.expected_return_time)},${r.return_person || ''},${r.return_condition || ''},${fmt(r.return_time)},${r.status === 'borrowed' ? '借出中' : '已归还'}\n`;
+        });
+    }
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '仪器管理数据_' + new Date(Date.now() + 8*60*60*1000).toISOString().slice(0, 10) + '.csv';
+    a.click();
+    toast('导出成功！用 Excel 打开即可', 'success');
+}
+// ==================== 启动 ====================
+showPage('scan');
+</script>
+</body>
+</html>
